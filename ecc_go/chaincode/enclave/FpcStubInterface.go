@@ -8,24 +8,27 @@ import (
 )
 
 type FpcStubInterface struct {
-	csp crypto.CSP
-	//input
+	csp   crypto.CSP
+	stub  shim.ChaincodeStubInterface
+	input *pb.ChaincodeInput
 	//rwset
-	//sek
-	stub shim.ChaincodeStubInterface
+	//kvset
+	stateKey []byte
 }
 
-func NewFpcStubInterface(stub shim.ChaincodeStubInterface) *FpcStubInterface {
+func NewFpcStubInterface(stub shim.ChaincodeStubInterface, input *pb.ChaincodeInput, stateKey []byte) *FpcStubInterface {
 	f := &FpcStubInterface{}
 	f.csp = crypto.GetDefaultCSP()
 	f.stub = stub
+	f.input = input
+	f.stateKey = stateKey
 	return f
 }
 
 // GetArgs returns the arguments intended for the chaincode Init and Invoke
 // as an array of byte arrays.
 func (f *FpcStubInterface) GetArgs() [][]byte {
-	panic("not implemented") // TODO: Implement
+	return f.input.GetArgs()
 }
 
 // GetStringArgs returns the arguments intended for the chaincode Init and

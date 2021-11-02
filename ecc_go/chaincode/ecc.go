@@ -11,8 +11,8 @@ import (
 	"fmt"
 
 	"github.com/hyperledger/fabric-chaincode-go/shim"
-	"github.com/hyperledger/fabric-private-chaincode/ecc/chaincode/enclave"
-	"github.com/hyperledger/fabric-private-chaincode/ecc/chaincode/ercc"
+	"github.com/hyperledger/fabric-private-chaincode/ecc_go/chaincode/enclave"
+	"github.com/hyperledger/fabric-private-chaincode/ecc_go/chaincode/ercc"
 	"github.com/hyperledger/fabric-private-chaincode/internal/endorsement"
 	"github.com/hyperledger/fabric-private-chaincode/internal/protos"
 	"github.com/hyperledger/fabric-private-chaincode/internal/utils"
