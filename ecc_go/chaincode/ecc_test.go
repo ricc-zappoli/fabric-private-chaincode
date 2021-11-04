@@ -9,11 +9,12 @@ import (
 	"github.com/hyperledger/fabric-private-chaincode/ecc_go/chaincode/enclave"
 	"github.com/hyperledger/fabric-private-chaincode/ecc_go/chaincode/ercc"
 	"github.com/hyperledger/fabric-private-chaincode/ecc_go/chaincode/fakes"
+	"github.com/hyperledger/fabric-private-chaincode/internal/crypto"
 	"github.com/hyperledger/fabric-private-chaincode/internal/endorsement"
 	"github.com/hyperledger/fabric-private-chaincode/internal/protos"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/proto"
 )
 
 //go:generate counterfeiter -o fakes/enclave.go -fake-name EnclaveStub . enclaveStub
@@ -78,80 +79,50 @@ func TestInitECC(t *testing.T) {
 	assert.Equal(t, shim.Error("invalid invocation"), r)
 }
 
-func TestInitEnclave(t *testing.T) {
+func TestEnclave(t *testing.T) {
 	stub := &fakes.ChaincodeStub{}
 	stub.GetFunctionAndParametersReturns("__initEnclave", nil)
 	_, _, ex, _ := newFakes()
 	ecc := newECC(newRealEc(), nil, ex, nil)
-	expectedErr := fmt.Errorf("some error")
-	expectedCCParams := &protos.CCParameters{
+
+	attestParams := []byte("someAttestationParams")
+	ccParams := &protos.CCParameters{
 		ChaincodeId: "SomeChaincodeId",
 	}
-	expectedHostParams := &protos.HostParameters{
+	hostParams := &protos.HostParameters{
 		PeerMspId:    "",
 		PeerEndpoint: "",
 		Certificate:  nil,
 	}
 
-	// error getting attestation params
-	ex.GetInitEnclaveMessageReturns(nil, expectedErr)
+	ex.GetInitEnclaveMessageReturns(&protos.InitEnclaveMessage{AttestationParams: attestParams}, nil)
+	ex.GetChaincodeParamsReturns(ccParams, nil)
+	ex.GetHostParamsReturns(hostParams, nil)
+
 	r := ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("getting initEnclave msg failed: %s", expectedErr), r)
-
-	// error getting chaincode params
-	ex.GetInitEnclaveMessageReturns(&protos.InitEnclaveMessage{AttestationParams: []byte("someAttestationParams")}, nil)
-	ex.GetChaincodeParamsReturns(nil, expectedErr)
-	r = ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("getting chaincode params failed: %s", expectedErr), r)
-
-	// error getting host params
-	ex.GetChaincodeParamsReturns(expectedCCParams, nil)
-	ex.GetHostParamsReturns(nil, expectedErr)
-	r = ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("getting host params failed: %s", expectedErr), r)
-
-	// error when init enclave
-	ex.GetHostParamsReturns(expectedHostParams, nil)
-	//ec.InitReturns(nil, expectedErr)
-	//r = ecc.Invoke(stub)
-	//expectError(t, fmt.Sprintf("Enclave Init function failed: %s", expectedErr), r)
-
-	// no error
-	//expectedCreds := []byte("someCredentials")
-	//ec.InitReturns(expectedCreds, nil)
-	r = ecc.Invoke(stub)
 	assert.EqualValues(t, shim.OK, r.Status)
-	p, err := base64.StdEncoding.DecodeString(string(r.Payload))
+	payload, err := base64.StdEncoding.DecodeString(string(r.Payload))
 	assert.NoError(t, err)
-	//assert.EqualValues(t, expectedCreds, p)
-	fmt.Println(p)
-}
 
-func TestInvokeEnclave(t *testing.T) {
-	stub := &fakes.ChaincodeStub{}
+	credentials := &protos.Credentials{}
+	proto.Unmarshal(payload, credentials)
+
 	stub.GetFunctionAndParametersReturns("__invoke", nil)
-	_, _, ex, _ := newFakes()
-	ecc := newECC(newRealEc(), nil, ex, nil)
-	expectedErr := fmt.Errorf("some error")
-	//expectedResp := []byte("someResponse")
+	ep := &crypto.EncryptionProviderImpl{
+		CSP: crypto.GetDefaultCSP(),
+		GetCcEncryptionKey: func() ([]byte, error) {
+			attestedData := &protos.AttestedData{}
+			err := proto.Unmarshal(credentials.SerializedAttestedData.GetValue(), attestedData)
+			return []byte(base64.StdEncoding.EncodeToString(attestedData.GetChaincodeEk())), err
+		}}
 
-	// error getting chaincode request
-	ex.GetSerializedChaincodeRequestReturns(nil, expectedErr)
-	r := ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("cannot get chaincode request message from input: %s", expectedErr), r)
+	ctx, _ := ep.NewEncryptionContext()
+	requestBytes, _ := ctx.Conceal("invoke", []string{"a", "b", "10"})
+	request, _ := base64.StdEncoding.DecodeString(requestBytes)
+	chaincodeRequestMessage := &protos.ChaincodeRequestMessage{}
+	err = proto.Unmarshal(request, chaincodeRequestMessage)
+	ex.GetSerializedChaincodeRequestReturns(request, nil)
 
-	// error when invoking enclave
-	//ex.GetSerializedChaincodeRequestReturns([]byte("someChaincodeRequest"), nil)
-	//ec.ChaincodeInvokeReturns(expectedResp, expectedErr)
-	//r = ecc.Invoke(stub)
-	//expectError(t, fmt.Sprintf("t.Enclave.Invoke failed: %s", expectedErr), r)
-	//p, err := base64.StdEncoding.DecodeString(string(r.Payload))
-	//assert.NoError(t, err)
-	//assert.EqualValues(t, expectedResp, p)
-
-	// no error
-	req, _ := ex.GetSerializedChaincodeRequest(stub)
-	ex.GetSerializedChaincodeRequestReturns(req, nil)
 	//ec.ChaincodeInvokeReturns(expectedResp, nil)
 	r = ecc.Invoke(stub)
 	assert.EqualValues(t, shim.OK, r.Status)
@@ -162,110 +133,7 @@ func TestInvokeEnclave(t *testing.T) {
 	//assert.Equal(t, stub, s)
 	//assert.Equal(t, []byte("someChaincodeRequest"), scr)
 	fmt.Println(p)
-}
 
-func TestEndorse(t *testing.T) {
-	stub := &fakes.ChaincodeStub{}
-	stub.GetFunctionAndParametersReturns("__endorse", nil)
-	_, val, ex, ercc := newFakes()
-	ecc := newECC(newRealEc(), val, ex, ercc)
-	expectedErr := fmt.Errorf("some error")
-	expectedCCParams := &protos.CCParameters{
-		ChaincodeId: "someCCID",
-		Version:     "someVersion",
-		Sequence:    1,
-		ChannelId:   "someChannel",
-	}
-	expectedSignedResp := &protos.SignedChaincodeResponseMessage{
-		ChaincodeResponseMessage: []byte("someMessage"),
-		Signature:                []byte("someSignature"),
-	}
-
-	expectedResp := &protos.ChaincodeResponseMessage{
-		EncryptedResponse:           nil,
-		FpcRwSet:                    nil,
-		Proposal:                    nil,
-		ChaincodeRequestMessageHash: nil,
-		EnclaveId:                   "someEnclaveId",
-	}
-
-	// error getting chaincode request
-	ex.GetChaincodeParamsReturns(nil, expectedErr)
-	r := ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("cannot extract chaincode params: %s", expectedErr), r)
-
-	// error getting chaincode response messages
-	ex.GetChaincodeParamsReturns(expectedCCParams, nil)
-	ex.GetChaincodeResponseMessagesReturns(nil, nil, expectedErr)
-	r = ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("cannot extract chaincode response message: %s", expectedErr), r)
-
-	// queryEnclaveCredentials returns error
-	ex.GetChaincodeParamsReturns(expectedCCParams, nil)
-	ex.GetChaincodeResponseMessagesReturns(expectedSignedResp, expectedResp, nil)
-	ercc.QueryEnclaveCredentialsReturns(nil, expectedErr)
-	r = ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("%s", expectedErr), r)
-
-	// credentials not found error
-	ex.GetChaincodeParamsReturns(expectedCCParams, nil)
-	ex.GetChaincodeResponseMessagesReturns(expectedSignedResp, expectedResp, nil)
-	ercc.QueryEnclaveCredentialsReturns(nil, nil)
-	r = ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("no credentials found for enclaveId = %s", expectedResp.EnclaveId), r)
-
-	// ccparams do not match error
-	serializedAttestedData, _ := anypb.New(
-		&protos.AttestedData{
-			CcParams: &protos.CCParameters{
-				ChaincodeId: "someOtherChaincodeId",
-				Version:     "someOtherVersion",
-				Sequence:    0,
-				ChannelId:   "someOtherChannel",
-			},
-		})
-	expectedCred := &protos.Credentials{
-		SerializedAttestedData: serializedAttestedData,
-	}
-	ex.GetChaincodeParamsReturns(expectedCCParams, nil)
-	ex.GetChaincodeResponseMessagesReturns(expectedSignedResp, expectedResp, nil)
-	ercc.QueryEnclaveCredentialsReturns(expectedCred, nil)
-	r = ecc.Invoke(stub)
-	expectError(t, fmt.Sprintf("ccParams don't match"), r)
-
-	// validate error
-	serializedAttestedData, _ = anypb.New(
-		&protos.AttestedData{
-			CcParams: expectedCCParams,
-		})
-	expectedCred = &protos.Credentials{
-		SerializedAttestedData: serializedAttestedData,
-	}
-	ex.GetChaincodeParamsReturns(expectedCCParams, nil)
-	ex.GetChaincodeResponseMessagesReturns(expectedSignedResp, expectedResp, nil)
-	ercc.QueryEnclaveCredentialsReturns(expectedCred, nil)
-	val.ValidateReturns(expectedErr)
-	r = ecc.Invoke(stub)
-	expectError(t, expectedErr.Error(), r)
-
-	// error when checking rwset
-	ex.GetChaincodeParamsReturns(expectedCCParams, nil)
-	ex.GetChaincodeResponseMessagesReturns(expectedSignedResp, expectedResp, nil)
-	ercc.QueryEnclaveCredentialsReturns(expectedCred, nil)
-	val.ValidateReturns(nil)
-	val.ReplayReadWritesReturns(expectedErr)
-	r = ecc.Invoke(stub)
-	expectError(t, expectedErr.Error(), r)
-
-	// no error
-	ex.GetChaincodeParamsReturns(expectedCCParams, nil)
-	ex.GetChaincodeResponseMessagesReturns(expectedSignedResp, expectedResp, nil)
-	ercc.QueryEnclaveCredentialsReturns(expectedCred, nil)
-	val.ValidateReturns(nil)
-	val.ReplayReadWritesReturns(nil)
-	r = ecc.Invoke(stub)
-	assert.EqualValues(t, shim.OK, r.Status)
-	assert.EqualValues(t, []byte("OK"), r.Payload)
 }
 
 func expectError(t *testing.T, errorMsg string, r peer.Response) {

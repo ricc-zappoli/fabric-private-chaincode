@@ -43,7 +43,7 @@ func (f *FpcStubInterface) GetStringArgs() []string {
 // Only use GetFunctionAndParameters if the client passes arguments intended
 // to be used as strings.
 func (f *FpcStubInterface) GetFunctionAndParameters() (string, []string) {
-	panic("not implemented") // TODO: Implement
+	return f.stub.GetFunctionAndParameters()
 }
 
 // GetArgsSlice returns the arguments intended for the chaincode Init and
