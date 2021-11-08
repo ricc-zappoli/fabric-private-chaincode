@@ -15,10 +15,10 @@ import (
 	"strings"
 
 	"github.com/hyperledger/fabric-chaincode-go/shim"
+	"github.com/hyperledger/fabric-private-chaincode/ecc_go/chaincode/simple"
 	"github.com/hyperledger/fabric-private-chaincode/internal/crypto"
 	"github.com/hyperledger/fabric-private-chaincode/internal/protos"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
-	"github.com/hyperledger/fabric/integration/chaincode/simple"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -124,6 +124,7 @@ func (e *EnclaveStub) ChaincodeInvoke(stub shim.ChaincodeStubInterface, chaincod
 	if err != nil {
 		shim.Error(err.Error())
 	}
+	chaincodeRequestMessageHash := sha256.Sum256(chaincodeRequestMessageBytes)
 
 	// unmarshal chaincodeRequest
 	chaincodeRequestMessage := &protos.ChaincodeRequestMessage{}
@@ -173,41 +174,22 @@ func (e *EnclaveStub) ChaincodeInvoke(stub shim.ChaincodeStubInterface, chaincod
 		return nil, err
 	}
 
-	// Invoke Simple Chaincode
-	fpcStub := NewFpcStubInterface(stub, cleartextChaincodeRequest.GetInput(), e.stateKey)
-	e.ccRef.Invoke(fpcStub)
-
-	// do some read/write ops
-	_ = stub.PutState("SomeOtherKey", []byte("some value"))
-	v, _ := stub.GetState("helloKey")
-	v_hash := sha256.Sum256(v)
-	logger.Debugf("get state: %s with hash %s", v, v_hash)
-
-	// construct rwset for validation
+	// construct rwset
 	rwset := &kvrwset.KVRWSet{
-		Reads: []*kvrwset.KVRead{{
-			Key:     "helloKey",
-			Version: nil,
-		}},
-		Writes: []*kvrwset.KVWrite{{
-			Key:      "SomeOtherKey",
-			IsDelete: false,
-			Value:    []byte("some value"),
-		}},
+		Reads:  []*kvrwset.KVRead{},
+		Writes: []*kvrwset.KVWrite{},
 	}
-
 	fpcKvSet := &protos.FPCKVSet{
 		RwSet:           rwset,
-		ReadValueHashes: [][]byte{v_hash[:]},
+		ReadValueHashes: [][]byte{},
 	}
 
-	requestMessageHash := sha256.Sum256(chaincodeRequestMessageBytes)
-
-	//create dummy response
-	responseData := []byte("some response")
+	// Invoke Simple Chaincode
+	fpcStub := NewFpcStubInterface(stub, cleartextChaincodeRequest.GetInput(), fpcKvSet, e.stateKey)
+	peerResponse := e.ccRef.Invoke(fpcStub)
 
 	//response must be encoded
-	b64ResponseData := base64.StdEncoding.EncodeToString(responseData)
+	b64ResponseData := base64.StdEncoding.EncodeToString(peerResponse.GetPayload())
 
 	//encrypt response
 	encryptedResponse, err := e.csp.EncryptMessage(keyTransportMessage.GetResponseEncryptionKey(), []byte(b64ResponseData))
@@ -220,7 +202,7 @@ func (e *EnclaveStub) ChaincodeInvoke(stub shim.ChaincodeStubInterface, chaincod
 		FpcRwSet:                    fpcKvSet,
 		EnclaveId:                   e.enclaveId,
 		Proposal:                    signedProposal,
-		ChaincodeRequestMessageHash: requestMessageHash[:],
+		ChaincodeRequestMessageHash: chaincodeRequestMessageHash[:],
 	}
 
 	responseBytes, err := proto.Marshal(response)

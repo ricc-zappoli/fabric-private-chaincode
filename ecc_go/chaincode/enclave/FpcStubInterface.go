@@ -1,28 +1,32 @@
 package enclave
 
 import (
+	"crypto/sha256"
+
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-private-chaincode/internal/crypto"
+	"github.com/hyperledger/fabric-private-chaincode/internal/protos"
+	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 )
 
 type FpcStubInterface struct {
-	csp   crypto.CSP
-	stub  shim.ChaincodeStubInterface
-	input *pb.ChaincodeInput
-	//rwset
-	//kvset
+	csp      crypto.CSP
+	stub     shim.ChaincodeStubInterface
+	input    *pb.ChaincodeInput
+	fpcKvSet *protos.FPCKVSet
 	stateKey []byte
 }
 
-func NewFpcStubInterface(stub shim.ChaincodeStubInterface, input *pb.ChaincodeInput, stateKey []byte) *FpcStubInterface {
-	f := &FpcStubInterface{}
-	f.csp = crypto.GetDefaultCSP()
-	f.stub = stub
-	f.input = input
-	f.stateKey = stateKey
-	return f
+func NewFpcStubInterface(stub shim.ChaincodeStubInterface, input *pb.ChaincodeInput, fpcKvSet *protos.FPCKVSet, stateKey []byte) *FpcStubInterface {
+	return &FpcStubInterface{
+		csp:      crypto.GetDefaultCSP(),
+		stub:     stub,
+		input:    input,
+		fpcKvSet: fpcKvSet,
+		stateKey: stateKey,
+	}
 }
 
 // GetArgs returns the arguments intended for the chaincode Init and Invoke
@@ -35,7 +39,12 @@ func (f *FpcStubInterface) GetArgs() [][]byte {
 // Invoke as a string array. Only use GetStringArgs if the client passes
 // arguments intended to be used as strings.
 func (f *FpcStubInterface) GetStringArgs() []string {
-	panic("not implemented") // TODO: Implement
+	byteArgs := f.input.GetArgs()
+	stringArgs := make([]string, len(byteArgs))
+	for i := range byteArgs {
+		stringArgs[i] = string(byteArgs[i])
+	}
+	return stringArgs
 }
 
 // GetFunctionAndParameters returns the first argument as the function
@@ -43,7 +52,8 @@ func (f *FpcStubInterface) GetStringArgs() []string {
 // Only use GetFunctionAndParameters if the client passes arguments intended
 // to be used as strings.
 func (f *FpcStubInterface) GetFunctionAndParameters() (string, []string) {
-	return f.stub.GetFunctionAndParameters()
+	inputs := f.GetStringArgs()
+	return inputs[0], inputs[1:]
 }
 
 // GetArgsSlice returns the arguments intended for the chaincode Init and
@@ -92,7 +102,21 @@ func (f *FpcStubInterface) InvokeChaincode(chaincodeName string, args [][]byte, 
 // consider data modified by PutState that has not been committed.
 // If the key does not exist in the state database, (nil, nil) is returned.
 func (f *FpcStubInterface) GetState(key string) ([]byte, error) {
-	panic("not implemented") // TODO: Implement
+	encValue, err := f.stub.GetState(key)
+	if err != nil {
+		return nil, err
+	}
+	value, err := f.csp.DecryptMessage(f.stateKey, encValue)
+	if err != nil {
+		return nil, err
+	}
+	v_hash := sha256.Sum256(value)
+	f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
+		Key:     key,
+		Version: nil,
+	})
+	f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])
+	return value, err
 }
 
 // PutState puts the specified `key` and `value` into the transaction's
@@ -104,7 +128,16 @@ func (f *FpcStubInterface) GetState(key string) ([]byte, error) {
 // key namespace. In addition, if using CouchDB, keys can only contain
 // valid UTF-8 strings and cannot begin with an underscore ("_").
 func (f *FpcStubInterface) PutState(key string, value []byte) error {
-	panic("not implemented") // TODO: Implement
+	encValue, err := f.csp.EncryptMessage(f.stateKey, value)
+	if err != nil {
+		return err
+	}
+	f.fpcKvSet.RwSet.Writes = append(f.fpcKvSet.RwSet.Writes, &kvrwset.KVWrite{
+		Key:      key,
+		IsDelete: false,
+		Value:    encValue,
+	})
+	return f.stub.PutState(key, encValue)
 }
 
 // DelState records the specified `key` to be deleted in the writeset of
