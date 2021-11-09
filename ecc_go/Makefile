@@ -18,6 +18,7 @@ DOCKER_CONTAINER_ID?=$$(docker ps | grep -- ${NET_ID}-${PEER_ID}-$(CC_NAME)- | a
 DOCKER_IMAGE ?= $$(docker images | grep -- ${NET_ID}-${PEER_ID}-$(CC_NAME)- | awk '{print $$1;}')
 HW_EXTENSION=$(shell if [ "${SGX_MODE}" = "HW" ]; then echo "-hw"; fi)
 DOCKER_BOILERPLATE_ECC_IMAGE ?= hyperledger/$(PROJECT_NAME)-boilerplate-ecc${HW_EXTENSION}
+DOCKER_GO_ECC_IMAGE ?= fpc/fpc-ecc-go${HW_EXTENSION}
 ECC_ENCLAVE_BUILD = ../ecc_enclave/_build
 ERR_MSG = "ecc_enclave build does not exist!"
 DOCKER_ENCLAVE_SO_PATH ?= $(ENCLAVE_SO_PATH)
@@ -34,6 +35,12 @@ sym-links:
 
 ecc: ecc_dependencies
 	$(GO) build $(GOTAGS) -o ecc main.go
+
+.PHONY:ecc_go
+ecc_go:
+	$(GO) build $(GOTAGS) -o ecc_go main.go
+#ego-go build -o ecc_go main.go
+#ego sign ecc_go 
 
 ecc_dependencies:
 	# hard to list explicitly, so just leave empty target,
@@ -63,6 +70,12 @@ docker: docker-fpc-app
 
 docker-boilerplate-ecc: ecc
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) -t $(DOCKER_BOILERPLATE_ECC_IMAGE):$(FPC_VERSION) -f Dockerfile.boilerplate-ecc\
+		--build-arg SGX_MODE=$(SGX_MODE)\
+		--build-arg CAAS_PORT=$(CAAS_PORT)\
+		..
+
+docker-go-ecc: ecc_go
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) -t $(DOCKER_GO_ECC_IMAGE):$(FPC_VERSION) -f Dockerfile.go-ecc\
 		--build-arg SGX_MODE=$(SGX_MODE)\
 		--build-arg CAAS_PORT=$(CAAS_PORT)\
 		..
