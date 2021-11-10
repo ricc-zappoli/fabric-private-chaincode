@@ -38,9 +38,9 @@ ecc: ecc_dependencies
 
 .PHONY:ecc_go
 ecc_go:
-	$(GO) build $(GOTAGS) -o ecc_go main.go
-#ego-go build -o ecc_go main.go
-#ego sign ecc_go 
+#(GO) build $(GOTAGS) -o ecc_go main.go
+	ego-go build -o ecc_go main.go
+	ego sign ecc_go 
 
 ecc_dependencies:
 	# hard to list explicitly, so just leave empty target,

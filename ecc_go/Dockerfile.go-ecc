@@ -17,9 +17,9 @@ FROM hyperledger/fabric-private-chaincode-ccenv:${FPC_VERSION}
 
 #RUN wget -qO- https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add \
 #  && add-apt-repository "deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu `lsb_release -cs` main" \
-#RUN apt-get update -q \
-#  && wget https://github.com/edgelesssys/ego/releases/download/v0.3.3/ego_0.3.3_amd64.deb \
-#  && apt install -y ./ego_0.3.3_amd64.deb 
+RUN apt-get update -q \
+  && wget https://github.com/edgelesssys/ego/releases/download/v0.3.3/ego_0.3.3_amd64.deb \
+  && apt install -y ./ego_0.3.3_amd64.deb 
 # build-essential libssl-dev
 
 ARG SGX_MODE
@@ -45,4 +45,4 @@ COPY ecc_go/${CC_NAME} ${CC_PATH}/chaincode
 
 WORKDIR ${CC_PATH}
 EXPOSE ${CAAS_PORT}
-CMD ["chaincode"]
+CMD ["OE_SIMULATION=1 ego run chaincode"]

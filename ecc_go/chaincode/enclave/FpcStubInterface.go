@@ -110,7 +110,7 @@ func (f *FpcStubInterface) GetState(key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	v_hash := sha256.Sum256(value)
+	v_hash := sha256.Sum256(encValue)
 	f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
 		Key:     key,
 		Version: nil,

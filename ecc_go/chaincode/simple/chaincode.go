@@ -87,7 +87,7 @@ func (t *SimpleChaincode) init(stub shim.ChaincodeStubInterface) pb.Response {
 	}
 
 	fmt.Println("Init returning with success")
-	return shim.Success(nil)
+	return shim.Success([]byte("Ok"))
 }
 
 // Transaction makes payment of X units from A to B
@@ -144,7 +144,7 @@ func (t *SimpleChaincode) invoke(stub shim.ChaincodeStubInterface, args []string
 		return shim.Error(err.Error())
 	}
 
-	return shim.Success(nil)
+	return shim.Success([]byte("Ok"))
 }
 
 // Deletes an entity from state
