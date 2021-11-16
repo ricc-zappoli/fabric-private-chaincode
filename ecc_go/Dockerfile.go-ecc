@@ -15,34 +15,26 @@ ARG FPC_VERSION=main
 
 FROM hyperledger/fabric-private-chaincode-ccenv:${FPC_VERSION}
 
-#RUN wget -qO- https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add \
-#  && add-apt-repository "deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu `lsb_release -cs` main" \
-RUN apt-get update -q \
-  && wget https://github.com/edgelesssys/ego/releases/download/v0.3.3/ego_0.3.3_amd64.deb \
-  && apt install -y ./ego_0.3.3_amd64.deb 
-# build-essential libssl-dev
+RUN wget https://github.com/edgelesssys/ego/releases/download/v0.3.3/ego_0.3.3_amd64.deb && apt install -y ./ego_0.3.3_amd64.deb
 
 ARG SGX_MODE
 ENV SGX_MODE=${SGX_MODE}
-# Note: the library copied below is SGX_MODE dependent, so we
-# define here a env which makes it easy recognizable which mode
-# the container is. No default, though, as we do not control
-# the build and rely on a proper value provided from outside.
+ARG OE_SIMULATION
+ENV OE_SIMULATION=${OE_SIMULATION}
 
 ARG CAAS_PORT=9999
 ARG CC_NAME="ecc_go"
 ARG CC_PATH="/usr/local/bin"
 ARG CC_LIB_PATH=${CC_PATH}"/enclave/lib"
-
-
 RUN mkdir -p ${CC_LIB_PATH}
 
 ENV SGX_SDK=/opt/intel/sgxsdk
 ENV LD_LIBRARY_PATH=${SGX_SDK}/sdk_libs:${CC_LIB_PATH}
 
 COPY ecc_go/${CC_NAME} ${CC_PATH}/chaincode
-# TODO: other files will be needed to run with ego
+COPY ecc_go/enclave.json ${CC_PATH}/enclave.json
 
 WORKDIR ${CC_PATH}
 EXPOSE ${CAAS_PORT}
-CMD ["OE_SIMULATION=1 ego run chaincode"]
+
+CMD ego sign chaincode && ego run chaincode

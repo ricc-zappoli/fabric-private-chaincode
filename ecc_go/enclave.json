@@ -1,5 +1,5 @@
 {
- "exe": "ecc_go",
+ "exe": "chaincode",
  "key": "private.pem",
  "debug": true,
  "heapSize": 512,
@@ -9,15 +9,15 @@
  "files": null,
  "env": [
     {
-        "name": "CORE_CHAINCODE_LOGLEVEL",
+        "name": "CHAINCODE_SERVER_ADDRESS",
         "fromHost": true
     },
     {
-        "name": "CORE_PEER_TLS_ENABLED",
+        "name": "CHAINCODE_PKG_ID",
         "fromHost": true
     },
     {
-        "name": "CORE_CHAINCODE_ID_NAME",
+        "name": "FABRIC_LOGGING_SPEC",
         "fromHost": true
     }
 ]
