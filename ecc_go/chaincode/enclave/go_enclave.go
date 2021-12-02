@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/hyperledger/fabric-chaincode-go/shim"
-	"github.com/hyperledger/fabric-private-chaincode/ecc_go/chaincode/simple"
+	"github.com/hyperledger/fabric-private-chaincode/samples/chaincode/golang"
 	"github.com/hyperledger/fabric-private-chaincode/internal/crypto"
 	"github.com/hyperledger/fabric-private-chaincode/internal/protos"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
@@ -37,7 +37,7 @@ type EnclaveStub struct {
 func NewEnclaveStub() *EnclaveStub {
 	return &EnclaveStub{
 		csp:   crypto.GetDefaultCSP(),
-		ccRef: &simple.SimpleChaincode{},
+		ccRef: &golang.KvTest{},
 	}
 }
 

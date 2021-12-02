@@ -21,9 +21,10 @@ ARG SGX_MODE
 ENV SGX_MODE=${SGX_MODE}
 ARG OE_SIMULATION
 ENV OE_SIMULATION=${OE_SIMULATION}
+ARG CC_NAME
+ENV CC_NAME=${CC_NAME}
 
 ARG CAAS_PORT=9999
-ARG CC_NAME="ecc_go"
 ARG CC_PATH="/usr/local/bin"
 ARG CC_LIB_PATH=${CC_PATH}"/enclave/lib"
 RUN mkdir -p ${CC_LIB_PATH}
@@ -31,7 +32,7 @@ RUN mkdir -p ${CC_LIB_PATH}
 ENV SGX_SDK=/opt/intel/sgxsdk
 ENV LD_LIBRARY_PATH=${SGX_SDK}/sdk_libs:${CC_LIB_PATH}
 
-COPY ecc_go/${CC_NAME} ${CC_PATH}/chaincode
+COPY ecc_go/ecc_go ${CC_PATH}/chaincode
 
 WORKDIR ${CC_PATH}
 EXPOSE ${CAAS_PORT}
