@@ -6,9 +6,9 @@
 TOP = ..
 include $(TOP)/build.mk
 
-GOTAGS += -tags WITH_PDO_CRYPTO
+GOTAGS += -tags $(CC_NAME)
 
-CC_NAME ?= simple-go
+CC_NAME ?= simple
 NET_ID ?=dev
 PEER_ID ?=jdoe
 CAAS_PORT ?= 9999
@@ -17,7 +17,7 @@ DOCKER_CONTAINER_ID?=$$(docker ps | grep -- ${NET_ID}-${PEER_ID}-$(CC_NAME)- | a
 # the following are the required docker build parameters
 DOCKER_IMAGE ?= $$(docker images | grep -- ${NET_ID}-${PEER_ID}-$(CC_NAME)- | awk '{print $$1;}')
 HW_EXTENSION=$(shell if [ "${SGX_MODE}" = "HW" ]; then echo "-hw"; fi)
-DOCKER_GO_ECC_IMAGE ?= fpc/fpc-$(CC_NAME)${HW_EXTENSION}
+DOCKER_GO_ECC_IMAGE ?= fpc/fpc-$(CC_NAME)-go${HW_EXTENSION}
 ECC_ENCLAVE_BUILD = ../ecc_enclave/_build
 ERR_MSG = "ecc_enclave build does not exist!"
 DOCKER_ENCLAVE_SO_PATH ?= $(ENCLAVE_SO_PATH)
@@ -36,7 +36,7 @@ ecc: ecc_dependencies
 	$(GO) build $(GOTAGS) -o ecc main.go
 .PHONY: ecc_go
 ecc_go:
-	ego-go build -o ecc_go main.go
+	ego-go build $(GOTAGS) -o ecc_go main.go
 	ego sign ecc_go
 
 ecc_dependencies:
@@ -70,7 +70,6 @@ docker-go-ecc: ecc_go
 		--build-arg SGX_MODE=$(SGX_MODE)\
 		$(shell if [ "${SGX_MODE}" = "SIM" ]; then echo "--build-arg OE_SIMULATION=1"; fi)\
 		--build-arg CAAS_PORT=$(CAAS_PORT)\
-		--build-arg CC_NAME=$(CC_NAME)\
 		..
 
 docker-fpc-app: docker-boilerplate-ecc

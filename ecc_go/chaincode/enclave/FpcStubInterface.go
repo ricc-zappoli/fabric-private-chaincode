@@ -2,6 +2,7 @@ package enclave
 
 import (
 	"crypto/sha256"
+	"fmt"
 
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
@@ -102,7 +103,7 @@ func (f *FpcStubInterface) InvokeChaincode(chaincodeName string, args [][]byte, 
 // consider data modified by PutState that has not been committed.
 // If the key does not exist in the state database, (nil, nil) is returned.
 func (f *FpcStubInterface) GetState(key string) ([]byte, error) {
-	encValue, err := f.stub.GetState(key)
+	encValue, err := f.GetPublicState(key)
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +111,21 @@ func (f *FpcStubInterface) GetState(key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	v_hash := sha256.Sum256(encValue)
+	return value, nil
+}
+
+func (f *FpcStubInterface) GetPublicState(key string) ([]byte, error) {
+	value, err := f.stub.GetState(key)
+	if err != nil {
+		return nil, err
+	}
+	v_hash := sha256.Sum256(value)
 	f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
 		Key:     key,
 		Version: nil,
 	})
 	f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])
-	return value, err
+	return value, nil
 }
 
 // PutState puts the specified `key` and `value` into the transaction's
@@ -132,12 +141,16 @@ func (f *FpcStubInterface) PutState(key string, value []byte) error {
 	if err != nil {
 		return err
 	}
+	return f.PutPublicState(key, encValue)
+}
+
+func (f *FpcStubInterface) PutPublicState(key string, value []byte) error {
 	f.fpcKvSet.RwSet.Writes = append(f.fpcKvSet.RwSet.Writes, &kvrwset.KVWrite{
 		Key:      key,
 		IsDelete: false,
-		Value:    encValue,
+		Value:    value,
 	})
-	return f.stub.PutState(key, encValue)
+	return f.stub.PutState(key, value)
 }
 
 // DelState records the specified `key` to be deleted in the writeset of
@@ -208,7 +221,57 @@ func (f *FpcStubInterface) GetStateByRangeWithPagination(startKey string, endKey
 // The query is re-executed during validation phase to ensure result set
 // has not changed since transaction endorsement (phantom reads detected).
 func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
-	panic("not implemented") // TODO: Implement
+	fmt.Println("Private start")
+	fmt.Println(objectType)
+	fmt.Println(keys)
+	iterator, err := f.GetPublicStateByPartialCompositeKey(objectType, keys)
+	if err != nil {
+		return nil, err
+	}
+	for iterator.HasNext() {
+		i, err := iterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(&i)
+		decValue, err := f.csp.DecryptMessage(f.stateKey, i.Value)
+		if err != nil {
+			return nil, err
+		}
+		i.Value = decValue
+		fmt.Println(i.Key)
+		fmt.Println(i.Value)
+	}
+	fmt.Println("Private end")
+	return iterator, nil
+}
+
+func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
+	fmt.Println("Public start")
+	fmt.Println(objectType)
+	fmt.Println(keys)
+	iterator, err := f.stub.GetStateByPartialCompositeKey(objectType, keys)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(&iterator)
+	for iterator.HasNext() {
+		i, err := iterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		v_hash := sha256.Sum256(i.Value)
+		fmt.Println(i.Key)
+		fmt.Println(i.Value)
+		fmt.Println(v_hash)
+		f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
+			Key:     i.Key,
+			Version: nil,
+		})
+		f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])
+	}
+	fmt.Println("Public end")
+	return iterator, nil
 }
 
 // GetStateByPartialCompositeKeyWithPagination queries the state in the ledger based on

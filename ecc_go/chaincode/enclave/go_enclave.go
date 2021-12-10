@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/hyperledger/fabric-chaincode-go/shim"
-	"github.com/hyperledger/fabric-private-chaincode/samples/chaincode/golang"
+	"github.com/hyperledger/fabric-private-chaincode/ecc_go/chaincode/enclave/chaincodes"
 	"github.com/hyperledger/fabric-private-chaincode/internal/crypto"
 	"github.com/hyperledger/fabric-private-chaincode/internal/protos"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
@@ -37,7 +37,7 @@ type EnclaveStub struct {
 func NewEnclaveStub() *EnclaveStub {
 	return &EnclaveStub{
 		csp:   crypto.GetDefaultCSP(),
-		ccRef: &golang.KvTest{},
+		ccRef: chaincodes.New(),
 	}
 }
 
@@ -188,8 +188,13 @@ func (e *EnclaveStub) ChaincodeInvoke(stub shim.ChaincodeStubInterface, chaincod
 	fpcStub := NewFpcStubInterface(stub, cleartextChaincodeRequest.GetInput(), fpcKvSet, e.stateKey)
 	peerResponse := e.ccRef.Invoke(fpcStub)
 
-	//response must be encoded
-	b64ResponseData := base64.StdEncoding.EncodeToString(peerResponse.GetPayload())
+	// If payload is empty (probably due to a shim.Error), the response will contain the message
+	var b64ResponseData string
+	if peerResponse.GetPayload() != nil {
+		b64ResponseData = base64.StdEncoding.EncodeToString(peerResponse.GetPayload())
+	} else {
+		b64ResponseData = base64.StdEncoding.EncodeToString([]byte(peerResponse.GetMessage()))
+	}
 
 	//encrypt response
 	encryptedResponse, err := e.csp.EncryptMessage(keyTransportMessage.GetResponseEncryptionKey(), []byte(b64ResponseData))
