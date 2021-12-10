@@ -8,6 +8,7 @@ import (
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-private-chaincode/internal/crypto"
 	"github.com/hyperledger/fabric-private-chaincode/internal/protos"
+	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 )
@@ -208,6 +209,31 @@ func (f *FpcStubInterface) GetStateByRangeWithPagination(startKey string, endKey
 	panic("not implemented") // TODO: Implement
 }
 
+// Quick and Dirty
+// Really
+type IteratorBuffer struct {
+	buffer []*queryresult.KV
+	index  int
+}
+
+func (i *IteratorBuffer) Add(in *queryresult.KV) {
+	i.buffer = append(i.buffer, in)
+}
+
+func (i *IteratorBuffer) HasNext() bool {
+	return i.index < len(i.buffer)
+}
+
+func (i *IteratorBuffer) Close() error {
+	return nil
+}
+
+func (i IteratorBuffer) Next() (*queryresult.KV, error) {
+	out := i.buffer[i.index]
+	i.index = i.index + 1
+	return out, nil
+}
+
 // GetStateByPartialCompositeKey queries the state in the ledger based on
 // a given partial composite key. This function returns an iterator
 // which can be used to iterate over all composite keys whose prefix matches
@@ -228,6 +254,7 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys
 	if err != nil {
 		return nil, err
 	}
+	buffer := &IteratorBuffer{}
 	for iterator.HasNext() {
 		i, err := iterator.Next()
 		if err != nil {
@@ -238,12 +265,17 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys
 		if err != nil {
 			return nil, err
 		}
-		i.Value = decValue
+		b := &queryresult.KV{
+			Namespace: i.Namespace,
+			Key:       i.Key,
+			Value:     decValue,
+		}
+		buffer.Add(b)
 		fmt.Println(i.Key)
 		fmt.Println(i.Value)
 	}
 	fmt.Println("Private end")
-	return iterator, nil
+	return buffer, nil
 }
 
 func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
@@ -255,6 +287,7 @@ func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string
 		return nil, err
 	}
 	fmt.Println(&iterator)
+	buffer := &IteratorBuffer{}
 	for iterator.HasNext() {
 		i, err := iterator.Next()
 		if err != nil {
@@ -269,9 +302,15 @@ func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string
 			Version: nil,
 		})
 		f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])
+		b := &queryresult.KV{
+			Namespace: i.Namespace,
+			Key:       i.Key,
+			Value:     i.Value,
+		}
+		buffer.Add(b)
 	}
 	fmt.Println("Public end")
-	return iterator, nil
+	return buffer, nil
 }
 
 // GetStateByPartialCompositeKeyWithPagination queries the state in the ledger based on
