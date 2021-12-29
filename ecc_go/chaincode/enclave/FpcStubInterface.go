@@ -228,7 +228,7 @@ func (i *IteratorBuffer) Close() error {
 	return nil
 }
 
-func (i IteratorBuffer) Next() (*queryresult.KV, error) {
+func (i *IteratorBuffer) Next() (*queryresult.KV, error) {
 	out := i.buffer[i.index]
 	i.index = i.index + 1
 	return out, nil
@@ -248,8 +248,8 @@ func (i IteratorBuffer) Next() (*queryresult.KV, error) {
 // has not changed since transaction endorsement (phantom reads detected).
 func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
 	fmt.Println("Private start")
-	fmt.Println(objectType)
-	fmt.Println(keys)
+	fmt.Println("objectType", objectType)
+	fmt.Println("keys", keys)
 	iterator, err := f.GetPublicStateByPartialCompositeKey(objectType, keys)
 	if err != nil {
 		return nil, err
@@ -272,7 +272,7 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys
 		}
 		buffer.Add(b)
 		fmt.Println(i.Key)
-		fmt.Println(i.Value)
+		fmt.Println(decValue, "DecValue wesh")
 	}
 	fmt.Println("Private end")
 	return buffer, nil
@@ -280,8 +280,8 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys
 
 func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
 	fmt.Println("Public start")
-	fmt.Println(objectType)
-	fmt.Println(keys)
+	fmt.Println("objectType", objectType)
+	fmt.Println("keys", keys)
 	iterator, err := f.stub.GetStateByPartialCompositeKey(objectType, keys)
 	if err != nil {
 		return nil, err
@@ -294,8 +294,8 @@ func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string
 			return nil, err
 		}
 		v_hash := sha256.Sum256(i.Value)
-		fmt.Println(i.Key)
-		fmt.Println(i.Value)
+		fmt.Println(i.Key, "Wesh")
+		fmt.Println(i.Value, "Value")
 		fmt.Println(v_hash)
 		f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
 			Key:     i.Key,
@@ -341,7 +341,7 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKeyWithPagination(objectTyp
 // (biggest and unallocated code point).
 // The resulting composite key can be used as the key in PutState().
 func (f *FpcStubInterface) CreateCompositeKey(objectType string, attributes []string) (string, error) {
-	panic("not implemented") // TODO: Implement
+	return f.stub.CreateCompositeKey(objectType, attributes)
 }
 
 // SplitCompositeKey splits the specified key into attributes on which the
@@ -349,7 +349,7 @@ func (f *FpcStubInterface) CreateCompositeKey(objectType string, attributes []st
 // or partial composite key queries can therefore be split into their
 // composite parts.
 func (f *FpcStubInterface) SplitCompositeKey(compositeKey string) (string, []string, error) {
-	panic("not implemented") // TODO: Implement
+	return f.stub.SplitCompositeKey(compositeKey)
 }
 
 // GetQueryResult performs a "rich" query against a state database. It is

@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
@@ -28,8 +27,7 @@ const AUCTION_STILL_OPEN = "AUCTION_STILL_OPEN"
 const INITIALIZED_KEY = "initialized"
 const AUCTION_HOUSE_NAME_KEY = "auction_house_name"
 
-const SEP = "."
-const PREFIX = SEP + "somePrefix" + SEP
+const PREFIX = "somePrefix"
 
 type Auction struct {
 }
@@ -106,8 +104,8 @@ func (t *Auction) initAuctionHouse(stub shim.ChaincodeStubInterface, auctionHous
 }
 
 func (t *Auction) auctionCreate(stub shim.ChaincodeStubInterface, auctionName string) string {
-	_, err := stub.GetState(auctionName)
-	if err == nil {
+	value, err := stub.GetState(auctionName)
+	if value != nil && err == nil {
 		fmt.Println("AuctionCC: Auction already exists")
 		return AUCTION_ALREADY_EXISTING
 	}
@@ -132,7 +130,7 @@ func (t *Auction) auctionSubmit(stub shim.ChaincodeStubInterface, auctionName st
 		return AUCTION_ALREADY_CLOSED
 	}
 
-	key := PREFIX + auctionName + SEP + bidderName + SEP
+	key, _ := stub.CreateCompositeKey(PREFIX, []string{auctionName, bidderName})
 	bid := &bidType{BidderName: bidderName, Value: value}
 
 	bidBytes, _ := json.Marshal(bid)
@@ -178,9 +176,7 @@ func (t *Auction) auctionEval(stub shim.ChaincodeStubInterface, auctionName stri
 	}
 
 	var result string
-	compositeKey := PREFIX + auctionName + SEP
-	comp := strings.Split(compositeKey, SEP)
-	iter, _ := stub.GetStateByPartialCompositeKey(comp[1], comp[2:len(comp)-1])
+	iter, _ := stub.GetStateByPartialCompositeKey(PREFIX, []string{auctionName})
 
 	if !iter.HasNext() {
 		fmt.Println("AuctionCC: No bids")
@@ -216,7 +212,7 @@ func (t *Auction) auctionEval(stub shim.ChaincodeStubInterface, auctionName stri
 		}
 	}
 
-	resultKey := auctionName + SEP + "outcome" + SEP
+	resultKey, _ := stub.CreateCompositeKey("Outcome", []string{auctionName})
 	stub.PutState(resultKey, []byte(result))
 
 	return result

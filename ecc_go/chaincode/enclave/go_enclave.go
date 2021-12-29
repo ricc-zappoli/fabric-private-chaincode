@@ -188,6 +188,8 @@ func (e *EnclaveStub) ChaincodeInvoke(stub shim.ChaincodeStubInterface, chaincod
 	fpcStub := NewFpcStubInterface(stub, cleartextChaincodeRequest.GetInput(), fpcKvSet, e.stateKey)
 	peerResponse := e.ccRef.Invoke(fpcStub)
 
+	fmt.Println(fpcKvSet)
+
 	// If payload is empty (probably due to a shim.Error), the response will contain the message
 	var b64ResponseData string
 	if peerResponse.GetPayload() != nil {

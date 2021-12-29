@@ -118,13 +118,19 @@ func TestEnclave(t *testing.T) {
 		}}
 
 	ctx, _ := ep.NewEncryptionContext()
-	requestBytes, _ := ctx.Conceal("init", []string{"a", "100", "b", "200"})
+	requestBytes, _ := ctx.Conceal("init", []string{"House"})
 	request, _ := base64.StdEncoding.DecodeString(requestBytes)
 	chaincodeRequestMessage := &protos.ChaincodeRequestMessage{}
 	proto.Unmarshal(request, chaincodeRequestMessage)
 	ex.GetSerializedChaincodeRequestReturns(request, nil)
-	//stub.GetStateReturnsOnCall(0, "100", nil)
 	r = ecc.Invoke(stub)
+
+	requestBytes, _ = ctx.Conceal("create", []string{"Auction"})
+	request, _ = base64.StdEncoding.DecodeString(requestBytes)
+	proto.Unmarshal(request, chaincodeRequestMessage)
+	ex.GetSerializedChaincodeRequestReturns(request, nil)
+	r = ecc.Invoke(stub)
+
 	assert.EqualValues(t, shim.OK, r.Status)
 	p, err := base64.StdEncoding.DecodeString(string(r.Payload))
 	assert.NoError(t, err)
