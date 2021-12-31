@@ -8,6 +8,7 @@ import (
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-private-chaincode/internal/crypto"
 	"github.com/hyperledger/fabric-private-chaincode/internal/protos"
+	"github.com/hyperledger/fabric-private-chaincode/internal/utils"
 	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
@@ -260,7 +261,6 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(&i)
 		decValue, err := f.csp.DecryptMessage(f.stateKey, i.Value)
 		if err != nil {
 			return nil, err
@@ -271,8 +271,8 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys
 			Value:     decValue,
 		}
 		buffer.Add(b)
-		fmt.Println(i.Key)
-		fmt.Println(decValue, "DecValue wesh")
+		fmt.Println(i.Key, "Key")
+		fmt.Println(decValue, "DecValue")
 	}
 	fmt.Println("Private end")
 	return buffer, nil
@@ -294,17 +294,18 @@ func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string
 			return nil, err
 		}
 		v_hash := sha256.Sum256(i.Value)
-		fmt.Println(i.Key, "Wesh")
+		fmt.Println(i.Key, "Key")
+		fmt.Println(utils.TransformToFPCKey(i.Key), "FPC")
 		fmt.Println(i.Value, "Value")
 		fmt.Println(v_hash)
 		f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
-			Key:     i.Key,
+			Key:     utils.TransformToFPCKey(i.Key),
 			Version: nil,
 		})
 		f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])
 		b := &queryresult.KV{
 			Namespace: i.Namespace,
-			Key:       i.Key,
+			Key:       utils.TransformToFPCKey(i.Key),
 			Value:     i.Value,
 		}
 		buffer.Add(b)
@@ -341,7 +342,11 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKeyWithPagination(objectTyp
 // (biggest and unallocated code point).
 // The resulting composite key can be used as the key in PutState().
 func (f *FpcStubInterface) CreateCompositeKey(objectType string, attributes []string) (string, error) {
-	return f.stub.CreateCompositeKey(objectType, attributes)
+	key, err := f.stub.CreateCompositeKey(objectType, attributes)
+	if err != nil {
+		return "", err
+	}
+	return utils.TransformToFPCKey(key), nil
 }
 
 // SplitCompositeKey splits the specified key into attributes on which the
@@ -349,7 +354,7 @@ func (f *FpcStubInterface) CreateCompositeKey(objectType string, attributes []st
 // or partial composite key queries can therefore be split into their
 // composite parts.
 func (f *FpcStubInterface) SplitCompositeKey(compositeKey string) (string, []string, error) {
-	return f.stub.SplitCompositeKey(compositeKey)
+	panic("not implemented") // TODO: Implement
 }
 
 // GetQueryResult performs a "rich" query against a state database. It is
