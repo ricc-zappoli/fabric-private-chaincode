@@ -298,11 +298,12 @@ func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string
 		fmt.Println(utils.TransformToFPCKey(i.Key), "FPC")
 		fmt.Println(i.Value, "Value")
 		fmt.Println(v_hash)
-		f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
+		/*f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
 			Key:     utils.TransformToFPCKey(i.Key),
 			Version: nil,
 		})
-		f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])
+		f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])*/
+		f.GetPublicState(utils.TransformToFPCKey(i.Key))
 		b := &queryresult.KV{
 			Namespace: i.Namespace,
 			Key:       utils.TransformToFPCKey(i.Key),
