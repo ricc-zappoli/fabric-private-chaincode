@@ -248,9 +248,6 @@ func (i *IteratorBuffer) Next() (*queryresult.KV, error) {
 // The query is re-executed during validation phase to ensure result set
 // has not changed since transaction endorsement (phantom reads detected).
 func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
-	fmt.Println("Private start")
-	fmt.Println("objectType", objectType)
-	fmt.Println("keys", keys)
 	iterator, err := f.GetPublicStateByPartialCompositeKey(objectType, keys)
 	if err != nil {
 		return nil, err
@@ -271,17 +268,11 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys
 			Value:     decValue,
 		}
 		buffer.Add(b)
-		fmt.Println(i.Key, "Key")
-		fmt.Println(decValue, "DecValue")
 	}
-	fmt.Println("Private end")
 	return buffer, nil
 }
 
 func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
-	fmt.Println("Public start")
-	fmt.Println("objectType", objectType)
-	fmt.Println("keys", keys)
 	iterator, err := f.stub.GetStateByPartialCompositeKey(objectType, keys)
 	if err != nil {
 		return nil, err
@@ -293,17 +284,13 @@ func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string
 		if err != nil {
 			return nil, err
 		}
-		v_hash := sha256.Sum256(i.Value)
-		fmt.Println(i.Key, "Key")
-		fmt.Println(utils.TransformToFPCKey(i.Key), "FPC")
-		fmt.Println(i.Value, "Value")
-		fmt.Println(v_hash)
-		/*f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
+		/*v_hash := sha256.Sum256(i.Value)
+		f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
 			Key:     utils.TransformToFPCKey(i.Key),
 			Version: nil,
 		})
 		f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])*/
-		f.GetPublicState(utils.TransformToFPCKey(i.Key))
+		f.GetPublicState(utils.TransformToFPCKey(i.Key)) // Quick and dirty
 		b := &queryresult.KV{
 			Namespace: i.Namespace,
 			Key:       utils.TransformToFPCKey(i.Key),
@@ -311,7 +298,6 @@ func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string
 		}
 		buffer.Add(b)
 	}
-	fmt.Println("Public end")
 	return buffer, nil
 }
 

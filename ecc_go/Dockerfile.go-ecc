@@ -15,7 +15,10 @@ ARG FPC_VERSION=main
 
 FROM hyperledger/fabric-private-chaincode-ccenv:${FPC_VERSION}
 
-RUN wget https://github.com/edgelesssys/ego/releases/download/v0.3.4/ego_0.3.4_amd64.deb && apt install -y ./ego_0.3.4_amd64.deb
+RUN apt update && apt install -y build-essential libssl-dev
+RUN wget https://github.com/edgelesssys/ego/releases/download/v0.4.0/ego_0.4.0_amd64.deb && apt install -y ./ego_0.4.0_amd64.deb
+RUN ego install -y sgx-driver
+RUN ego install -y libsgx-launch 
 
 ARG SGX_MODE
 ENV SGX_MODE=${SGX_MODE}
@@ -27,8 +30,8 @@ ARG CC_PATH="/usr/local/bin"
 ARG CC_LIB_PATH=${CC_PATH}"/enclave/lib"
 RUN mkdir -p ${CC_LIB_PATH}
 
-ENV SGX_SDK=/opt/intel/sgxsdk
-ENV LD_LIBRARY_PATH=${SGX_SDK}/sdk_libs:${CC_LIB_PATH}
+# ENV SGX_SDK=/opt/intel/sgxsdk
+# ENV LD_LIBRARY_PATH=${SGX_SDK}/sdk_libs:${CC_LIB_PATH}
 
 COPY ecc_go/ecc_go ${CC_PATH}/chaincode
 

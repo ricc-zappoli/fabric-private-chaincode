@@ -5,17 +5,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-make -C $FPC_PATH/samples/deployment/test-network ercc-ecc-stop
-
+# Run test network
 cd $FPC_PATH/samples/deployment/test-network/fabric-samples/test-network
-./network.sh down
-
 ./network.sh up -ca
 ./network.sh createChannel -c mychannel
 
-
 cd $FPC_PATH/samples/deployment/test-network
-
 set -euo pipefail
 
 #DEBUG=true # uncomment (or define when calling script) to show debug output
@@ -162,21 +157,8 @@ peer lifecycle chaincode querycommitted --output json ${ORDERER_ARGS} --channelI
 peer lifecycle chaincode querycommitted --output json ${ORDERER_ARGS} --channelID ${CHANNEL_ID} --name ${CC_ID}
 
 
-# Note: above does _not_ yet complete the FPC chaincode initialization.
-# The missing 'peer lifecycle chaincode initEnclave' command for CaaS
-# must be executed after docker-compose is started. For the test-scenario
-# this is done '$FPC_PATH/client_sdk/go/test/main.go'
-
-#cat <<EOF
-## define (i.e., copy/paste into shell) following environment-variables
-## for docker-compose and then start it by calling 'make ercc-ecc-start'
-#export \\
-#  ORG1_ECC_PKG_ID=${ORG1_ECC_PKG_ID}\\
-#  ORG1_ERCC_PKG_ID=${ORG1_ERCC_PKG_ID}\\
-#  ORG2_ECC_PKG_ID=${ORG2_ECC_PKG_ID}\\
-#  ORG2_ERCC_PKG_ID=${ORG2_ERCC_PKG_ID}
-#EOF
-
+# Install test network
+#------------
 export ORG1_ECC_PKG_ID=${ORG1_ECC_PKG_ID}
 export ORG1_ERCC_PKG_ID=${ORG1_ERCC_PKG_ID}
 export ORG2_ECC_PKG_ID=${ORG2_ECC_PKG_ID}
@@ -188,4 +170,42 @@ echo ORG2_ECC_PKG_ID=${ORG2_ECC_PKG_ID}
 echo ORG2_ERCC_PKG_ID=${ORG2_ERCC_PKG_ID}
 
 cd $FPC_PATH/samples/deployment/test-network
-make ercc-ecc-start
+make ercc-ecc-background
+
+
+# Chaincode execution
+#------------
+cd $FPC_PATH/samples/deployment/test-network
+./update-connection.sh
+
+cd $FPC_PATH/samples/application/simple-cli-go
+make
+
+export CC_NAME=${CC_ID}
+echo CC_NAME=${CC_NAME}
+export CHANNEL_NAME=mychannel
+export CORE_PEER_ADDRESS=localhost:7051
+export CORE_PEER_ID=peer0.org1.example.com
+export CORE_PEER_LOCALMSPID=Org1MSP
+export CORE_PEER_MSPCONFIGPATH=$FPC_PATH/samples/deployment/test-network/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_TLS_CERT_FILE=$FPC_PATH/samples/deployment/test-network/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/server.crt
+export CORE_PEER_TLS_ENABLED="true"
+export CORE_PEER_TLS_KEY_FILE=$FPC_PATH/samples/deployment/test-network/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/server.key
+export CORE_PEER_TLS_ROOTCERT_FILE=$FPC_PATH/samples/deployment/test-network/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export ORDERER_CA=$FPC_PATH/samples/deployment/test-network/fabric-samples/test-network/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem
+export GATEWAY_CONFIG=$FPC_PATH/samples/deployment/test-network/fabric-samples/test-network/organizations/peerOrganizations/org1.example.com/connection-org1.yaml
+
+./fpcclient init $CORE_PEER_ID
+./fpcclient invoke init House
+./fpcclient invoke create Auction
+./fpcclient invoke submit Auction John 3
+./fpcclient invoke close Auction
+./fpcclient invoke eval Auction
+
+
+# Stop test network
+#------------
+make -C $FPC_PATH/samples/deployment/test-network ercc-ecc-stop
+
+cd $FPC_PATH/samples/deployment/test-network/fabric-samples/test-network
+./network.sh down
