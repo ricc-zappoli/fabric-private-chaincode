@@ -254,7 +254,7 @@ Make sure that you have the following required dependencies installed:
 
 * CMake v3.5.1 or higher
 
-* [Go](https://golang.org/) 1.16.7 or higher
+* [Go](https://golang.org/) 1.17.5 or higher
 
 * Docker 18.09 (or higher) and docker-compose 1.25.x (or higher)
   Note that version from Ubuntu 18.04 is not recent enough!  To upgrade, install a recent version following the instructions from [docker.com](https://docs.docker.com/compose/install/), e.g., for version 1.25.4 execute	
@@ -514,6 +514,27 @@ will create dummy files. In case you switch later to HW mode without
 configuring these files correctly for HW mode, this will result in
 above error.
 
+
+#### no Raft leader
+
+The following error message sometimes appears when running the integration tests in the `$FPC_PATH/integration` folder.
+The output contains the following:
+```
+got unexpected status: SERVICE_UNAVAILABLE -- no Raft leader
+```
+
+Rerunning the tests usually works.
+If this error appers during the make step of [building FPC](../fabric-private-chaincode/README.md#build-fabric-private-chaincode) than uncommenting some integration tests fixes the issue.
+
+
+#### Working with the FPC dev container
+
+To make starting and stopping the dev container more reliable it is advised to use the following commands:
+* Start the container and get a shell: `make -C $FPC_PATH/utils/docker run-dev`
+* Get another shell inside the dev container: `docker exec -it fpc-development-main /bin/bash`
+* Stop the container: `docker stop fpc-development-main`
+
+
 ### Building Documentation
 
 To build documentation (e.g., images from the PlantUML `.puml` files), you will have to install `java` and download `plantuml.jar`. Either put `plantuml.jar` into
@@ -540,6 +561,10 @@ More details about FPC APIs in the [Reference Guides](#reference-guides) Section
 ### Your first private chaincode
 
 Create, build and test your first private chaincode with the [Hello World Tutorial](samples/chaincode/helloworld/README.md).
+
+### Developing and deploying on Azure Confidential Computing
+
+We provide a brief [FPC on Azure Tutorial](samples/deployment/azure/FPC_on_Azure.md) with the required steps to set up a confidential computing instance on Azure to develop and test FPC with SGX hardware mode enabled. 
 
 
 ## Reference Guides
@@ -577,7 +602,7 @@ For the command-line invocations, use the **`$FPC_PATH/fabric/bin/peer.sh`** wra
 ## Getting Help
 
 Found a bug? Need help to fix an issue? You have a great idea for a new feature? Talk to us! You can reach us on
-[RocketChat](https://chat.hyperledger.org/) in #fabric-private-chaincode.
+[Discord](https://discord.gg/hyperledger) in #fabric-private-chaincode.
 
 We also have a weekly meeting every Tuesday at 3 pm GMT on [Zoom](https://zoom.us/my/hyperledger.community.3). Please
 see the Hyperledger [community calendar](https://wiki.hyperledger.org/display/HYP/Calendar+of+Public+Meetings) for
