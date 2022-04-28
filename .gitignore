@@ -9,3 +9,8 @@ cscope.*
 common/protos
 internal/protos
 coverage.out
+# golang-support branch
+ecc_go/ecc_go
+ecc_go/private.pem
+ecc_go/public.pem
+samples/deployment/test-network/fabric-samples/
