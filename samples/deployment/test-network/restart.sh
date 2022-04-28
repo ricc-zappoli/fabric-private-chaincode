@@ -162,21 +162,8 @@ peer lifecycle chaincode querycommitted --output json ${ORDERER_ARGS} --channelI
 peer lifecycle chaincode querycommitted --output json ${ORDERER_ARGS} --channelID ${CHANNEL_ID} --name ${CC_ID}
 
 
-# Note: above does _not_ yet complete the FPC chaincode initialization.
-# The missing 'peer lifecycle chaincode initEnclave' command for CaaS
-# must be executed after docker-compose is started. For the test-scenario
-# this is done '$FPC_PATH/client_sdk/go/test/main.go'
-
-#cat <<EOF
-## define (i.e., copy/paste into shell) following environment-variables
-## for docker-compose and then start it by calling 'make ercc-ecc-start'
-#export \\
-#  ORG1_ECC_PKG_ID=${ORG1_ECC_PKG_ID}\\
-#  ORG1_ERCC_PKG_ID=${ORG1_ERCC_PKG_ID}\\
-#  ORG2_ECC_PKG_ID=${ORG2_ECC_PKG_ID}\\
-#  ORG2_ERCC_PKG_ID=${ORG2_ERCC_PKG_ID}
-#EOF
-
+# Install test network
+#------------
 export ORG1_ECC_PKG_ID=${ORG1_ECC_PKG_ID}
 export ORG1_ERCC_PKG_ID=${ORG1_ERCC_PKG_ID}
 export ORG2_ECC_PKG_ID=${ORG2_ECC_PKG_ID}
@@ -188,4 +175,10 @@ echo ORG2_ECC_PKG_ID=${ORG2_ECC_PKG_ID}
 echo ORG2_ERCC_PKG_ID=${ORG2_ERCC_PKG_ID}
 
 cd $FPC_PATH/samples/deployment/test-network
-make ercc-ecc-start
+
+if [[ \ $*\  == *\ -d\ * ]]
+then
+  make ercc-ecc-background
+else
+  make ercc-ecc-start
+fi
