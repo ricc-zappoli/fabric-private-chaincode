@@ -2,7 +2,6 @@ package enclave
 
 import (
 	"crypto/sha256"
-	"fmt"
 
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
@@ -210,29 +209,61 @@ func (f *FpcStubInterface) GetStateByRangeWithPagination(startKey string, endKey
 	panic("not implemented") // TODO: Implement
 }
 
-// Quick and Dirty
-// Really
-type IteratorBuffer struct {
-	buffer []*queryresult.KV
-	index  int
+type fpcIterator struct {
+	iterator shim.StateQueryIteratorInterface
+	fpcStub  *FpcStubInterface
+	public   bool
 }
 
-func (i *IteratorBuffer) Add(in *queryresult.KV) {
-	i.buffer = append(i.buffer, in)
+func newFpcIterator(iterator shim.StateQueryIteratorInterface, fpcStub *FpcStubInterface, public bool) *fpcIterator {
+	return &fpcIterator{
+		iterator: iterator,
+		fpcStub:  fpcStub,
+		public:   public,
+	}
 }
 
-func (i *IteratorBuffer) HasNext() bool {
-	return i.index < len(i.buffer)
+func (i *fpcIterator) HasNext() bool {
+	return i.iterator.HasNext()
 }
 
-func (i *IteratorBuffer) Close() error {
-	return nil
+func (i *fpcIterator) Close() error {
+	return i.iterator.Close()
 }
 
-func (i *IteratorBuffer) Next() (*queryresult.KV, error) {
-	out := i.buffer[i.index]
-	i.index = i.index + 1
-	return out, nil
+func (i *fpcIterator) Next() (*queryresult.KV, error) {
+	q, err := i.iterator.Next()
+	if err != nil {
+		return nil, err
+	}
+
+	if q == nil {
+		return q, nil
+	}
+
+	v_hash := sha256.Sum256(q.Value)
+	i.fpcStub.fpcKvSet.RwSet.Reads = append(i.fpcStub.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
+		Key:     q.Key,
+		Version: nil,
+	})
+	i.fpcStub.fpcKvSet.ReadValueHashes = append(i.fpcStub.fpcKvSet.ReadValueHashes, v_hash[:])
+
+	if i.public {
+		decValue := q.Value
+		return &queryresult.KV{
+			Namespace: q.Namespace,
+			Key:       utils.TransformToFPCKey(q.Key),
+			Value:     decValue,
+		}, nil
+	} else {
+		decValue, _ := i.fpcStub.csp.DecryptMessage(i.fpcStub.stateKey, q.Value)
+		return &queryresult.KV{
+			Namespace: q.Namespace,
+			Key:       utils.TransformToFPCKey(q.Key),
+			Value:     decValue,
+		}, nil
+	}
+
 }
 
 // GetStateByPartialCompositeKey queries the state in the ledger based on
@@ -252,24 +283,8 @@ func (f *FpcStubInterface) GetStateByPartialCompositeKey(objectType string, keys
 	if err != nil {
 		return nil, err
 	}
-	buffer := &IteratorBuffer{}
-	for iterator.HasNext() {
-		i, err := iterator.Next()
-		if err != nil {
-			return nil, err
-		}
-		decValue, err := f.csp.DecryptMessage(f.stateKey, i.Value)
-		if err != nil {
-			return nil, err
-		}
-		b := &queryresult.KV{
-			Namespace: i.Namespace,
-			Key:       i.Key,
-			Value:     decValue,
-		}
-		buffer.Add(b)
-	}
-	return buffer, nil
+
+	return newFpcIterator(iterator, f, false), nil
 }
 
 func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
@@ -277,28 +292,8 @@ func (f *FpcStubInterface) GetPublicStateByPartialCompositeKey(objectType string
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(&iterator)
-	buffer := &IteratorBuffer{}
-	for iterator.HasNext() {
-		i, err := iterator.Next()
-		if err != nil {
-			return nil, err
-		}
-		/*v_hash := sha256.Sum256(i.Value)
-		f.fpcKvSet.RwSet.Reads = append(f.fpcKvSet.RwSet.Reads, &kvrwset.KVRead{
-			Key:     utils.TransformToFPCKey(i.Key),
-			Version: nil,
-		})
-		f.fpcKvSet.ReadValueHashes = append(f.fpcKvSet.ReadValueHashes, v_hash[:])*/
-		f.GetPublicState(utils.TransformToFPCKey(i.Key)) // Quick and dirty
-		b := &queryresult.KV{
-			Namespace: i.Namespace,
-			Key:       utils.TransformToFPCKey(i.Key),
-			Value:     i.Value,
-		}
-		buffer.Add(b)
-	}
-	return buffer, nil
+
+	return newFpcIterator(iterator, f, true), nil
 }
 
 // GetStateByPartialCompositeKeyWithPagination queries the state in the ledger based on
