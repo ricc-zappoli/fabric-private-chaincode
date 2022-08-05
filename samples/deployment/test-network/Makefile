@@ -14,6 +14,7 @@ ifeq ($(CC_PATH),)
 endif
 
 build: ercc-container ecc-container
+build-go: ercc-container ecc-container-go
 
 ercc-container:
 	make -C ${FPC_PATH}/ercc all docker
@@ -25,6 +26,11 @@ ecc-container:
 	make -C ${CC_PATH} && \
 	make -C ${FPC_PATH}/ecc DOCKER_IMAGE=fpc/fpc-${CC_ID}$${HW_EXTENSION} DOCKER_ENCLAVE_SO_PATH=${CC_PATH}/_build/lib all docker
 
+ecc-container-go:
+	if [ "${SGX_MODE}" = "HW" ]; then \
+		export HW_EXTENSION="-hw" ; \
+	fi && \
+	make -C ${CC_PATH}
 
 ercc-ecc-start:
 	if [ ! -z "${DOCKERD_FPC_PATH}" ]; then \

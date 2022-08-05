@@ -10,7 +10,9 @@ common/protos
 internal/protos
 coverage.out
 # golang-support branch
-ecc_go/ecc_go
-ecc_go/private.pem
-ecc_go/public.pem
 samples/deployment/test-network/fabric-samples/
+internal/protos/fpc.pb.go
+internal/protos/key_dist.pb.go
+internal/protos/trusted_ledger.pb.go
+internal/protos/tl_session/tl_session.pb.go
+samples/application/simple-cli-go/*.csv

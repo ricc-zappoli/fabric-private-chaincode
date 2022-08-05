@@ -17,25 +17,17 @@ FROM hyperledger/fabric-private-chaincode-ccenv:${FPC_VERSION}
 
 ARG SGX_MODE
 ENV SGX_MODE=${SGX_MODE}
-# Note: the library copied below is SGX_MODE dependent, so we
-# define here a env which makes it easy recognizable which mode
-# the container is. No default, though, as we do not control
-# the build and rely on a proper value provided from outside.
+ARG OE_SIMULATION
+ENV OE_SIMULATION=${OE_SIMULATION}
 
+ARG CC_NAME
+ARG BUILD_DIR
 ARG CAAS_PORT=9999
-ARG CC_NAME="ecc"
 ARG CC_PATH="/usr/local/bin"
-ARG CC_LIB_PATH=${CC_PATH}"/enclave/lib"
 
-
-RUN mkdir -p ${CC_LIB_PATH}
-
-ENV SGX_SDK=/opt/intel/sgxsdk
-ENV LD_LIBRARY_PATH=${SGX_SDK}/sdk_libs:${CC_LIB_PATH}
-
-copy ecc/${CC_NAME} ${CC_PATH}/chaincode
-copy ecc_enclave/_build/lib/libsgxcc.so ${CC_LIB_PATH}/
+COPY ${BUILD_DIR}/${CC_NAME}-go-bundle ${CC_PATH}/chaincode
 
 WORKDIR ${CC_PATH}
 EXPOSE ${CAAS_PORT}
+
 CMD ["chaincode"]

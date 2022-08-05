@@ -24,6 +24,7 @@ FROM hyperledger/fabric-private-chaincode-base-dev:${FPC_VERSION}
 # config/build params
 ARG FABRIC_REPO=https://github.com/hyperledger/fabric.git
 ARG FABRIC_VERSION=2.3.3
+ARG EGO_VERSION=1.0.0
 
 ARG FABRIC_REL_PATH=src/github.com/hyperledger/fabric
 ARG FPC_REL_PATH=src/github.com/hyperledger/fabric-private-chaincode
@@ -50,5 +51,10 @@ RUN git config --global user.name "${GIT_USER_NAME}" \
 ENV FABRIC_PATH=${GOPATH}/${FABRIC_REL_PATH}
 RUN git clone --branch v${FABRIC_VERSION} ${FABRIC_REPO} ${FABRIC_PATH}
 # Note: could add --single-branch to below to speed-up and keep size smaller. But for now for a dev-image better keep complete repo
+
+# Get EGo
+RUN wget https://github.com/edgelesssys/ego/releases/download/v${EGO_VERSION}/ego_${EGO_VERSION}_amd64.deb \
+ && apt install -y ./ego_${EGO_VERSION}_amd64.deb \
+ && rm ego_${EGO_VERSION}_amd64.deb
 
 WORKDIR ${FPC_PATH}

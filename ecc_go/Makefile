@@ -3,49 +3,27 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-TOP = ..
 include $(TOP)/build.mk
 
 GOTAGS += -tags $(CC_NAME)
-
-CC_NAME ?= simple
-NET_ID ?=dev
-PEER_ID ?=jdoe
 CAAS_PORT ?= 9999
 
-DOCKER_CONTAINER_ID?=$$(docker ps | grep -- ${NET_ID}-${PEER_ID}-$(CC_NAME)- | awk '{print $$1;}')
 # the following are the required docker build parameters
-DOCKER_IMAGE ?= $$(docker images | grep -- ${NET_ID}-${PEER_ID}-$(CC_NAME)- | awk '{print $$1;}')
+DOCKER_IMAGE ?= fpc/fpc-$(CC_NAME)-go${HW_EXTENSION}
 HW_EXTENSION=$(shell if [ "${SGX_MODE}" = "HW" ]; then echo "-hw"; fi)
-DOCKER_GO_ECC_IMAGE ?= fpc/fpc-$(CC_NAME)-go${HW_EXTENSION}
-ECC_ENCLAVE_BUILD = ../ecc_enclave/_build
-ERR_MSG = "ecc_enclave build does not exist!"
-DOCKER_ENCLAVE_SO_PATH ?= $(ENCLAVE_SO_PATH)
 
-build: ecc sym-links
-
-ecc_enclave: sym-links
-	@if [ ! -d $(ECC_ENCLAVE_BUILD)/lib ]; then echo $(ERR_MSG); exit 1; fi
-	@if [ ! -d $(ECC_ENCLAVE_BUILD)/include ]; then echo $(ERR_MSG); exit 1; fi
-
-sym-links:
-	ln -sfn ../../../ecc_enclave/_build/lib chaincode/enclave/ecc-enclave-lib
-	ln -sfn ../../../ecc_enclave/_build/include chaincode/enclave/ecc-enclave-include
+build: ecc docker
 
 ecc: ecc_dependencies
-	$(GO) build $(GOTAGS) -o ecc main.go
-.PHONY: ecc_go
-ecc_go:
-	ego-go build $(GOTAGS) -o ecc_go main.go
-	ego sign ecc_go
+	ego-go build $(GOTAGS) -o $(BUILD_DIR)/$(CC_NAME)-go $(TOP)/ecc_go/main.go
+	cd $(BUILD_DIR) && ego sign
+	cd $(BUILD_DIR) && ego uniqueid $(CC_NAME)-go > lib/mrenclave
+	cd $(BUILD_DIR) && ego bundle $(CC_NAME)-go
 
 ecc_dependencies:
 	# hard to list explicitly, so just leave empty target,
 	# which forces ecc to always be built
 
-test: build
-	# note that we run unit test with a mock enclave
-	$(GO) test $(GOTAGS) -tags mock_ecc $(GOTESTFLAGS) ./...
 
 # Note:
 # - docker images are not necessarily rebuild if they exist but are outdated.
@@ -61,59 +39,16 @@ endif
 ifdef DOCKER_FORCE_REBUILD
 	DOCKER_BUILD_OPTS += --no-cache
 endif
+ifeq ($(SGX_MODE), SIM)
+    DOCKER_BUILD_OPTS += --build-arg OE_SIMULATION=1
+endif
 DOCKER_BUILD_OPTS += --build-arg FPC_VERSION=$(FPC_VERSION)
+DOCKER_BUILD_OPTS += --build-arg SGX_MODE=$(SGX_MODE)
+DOCKER_BUILD_OPTS += --build-arg CAAS_PORT=$(CAAS_PORT)
+DOCKER_BUILD_OPTS += --build-arg CC_NAME=$(CC_NAME)
+DOCKER_BUILD_OPTS += --build-arg BUILD_DIR=$(BUILD_DIR)
 
-docker: docker-fpc-app
 
-docker-go-ecc: ecc_go
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) -t $(DOCKER_GO_ECC_IMAGE):$(FPC_VERSION) -f Dockerfile.go-ecc\
-		--build-arg SGX_MODE=$(SGX_MODE)\
-		$(shell if [ "${SGX_MODE}" = "SIM" ]; then echo "--build-arg OE_SIMULATION=1"; fi)\
-		--build-arg CAAS_PORT=$(CAAS_PORT)\
-		..
 
-docker-fpc-app: docker-boilerplate-ecc
-	if [ -z "$(DOCKER_IMAGE)" ]; then\
-		echo "\033[0;31mERROR: cannot override $(CC_NAME) docker image - not found\033[0m";\
-		exit 1;\
-	fi
-	echo "\033[1;33mWARNING: overriding $(DOCKER_IMAGE) docker image\033[0m"
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) -t $(DOCKER_IMAGE):$(FPC_VERSION) -f Dockerfile.fpc-app \
-                --build-arg HW_EXTENSION=$(HW_EXTENSION)\
- 		$(DOCKER_ENCLAVE_SO_PATH)
-
-docker-run:
-	if [ "$(SGX_MODE)" = "HW" ]; then \
-		SGX_DEVICE_PATH=$(if [ -e "/dev/isgx" ]; then echo "/dev/isgx"; elif [ -e "/dev/sgx" ]; then echo "/dev/sgx"; else echo "ERROR: NO SGX DEVICE FOUND"; fi);\
-		DOCKER_SGX_ARGS="--device $${SGX_DEVICE_PATH} -v /var/run/aesmd:/var/run/aesmd";\
-	fi;\
-	$(DOCKER) run \
-		-it \
-		$${DOCKER_SGX_ARGS} \
-		--name $(CC_NAME) \
-		-e "CORE_CHAINCODE_LOGGING_LEVEL=DEBUG" \
-		-e "CORE_CHAINCODE_LOGGING_SHIM=INFO" \
-		-e "CORE_PEER_ADDRESS=172.17.0.1:7051" \
-		-e "CORE_CHAINCODE_ID_NAME=$(CC_NAME):0" \
-		$(DOCKER_IMAGE):$(FPC_VERSION) \
-		chaincode
-
-docker-stop:
-	-if [ ! -z "$(DOCKER_CONTAINER_ID)" ]; then docker stop $(DOCKER_CONTAINER_ID); fi
-	-if [ ! -z "$(DOCKER_CONTAINER_ID)" ]; then docker rm $(DOCKER_CONTAINER_ID); fi
-
-docker-clean: docker-stop
-	-if [ ! -z "$(DOCKER_IMAGE)" ]; then docker rmi -f $(DOCKER_IMAGE); fi
-	for tag in \
-	    ${FPC_VERSION} \
-	    latest \
-	; do \
-	    if [ ! -z "$$(docker images -q ${DOCKER_BOILERPLATE_ECC_IMAGE}:$${tag})" ]; then \
-		docker rmi $(DOCKER_BOILERPLATE_ECC_IMAGE):$${tag}; \
-	    fi \
-	done
-
-clobber: docker-clean
-clean: docker-clean
-	$(GO) clean
-	$(RM) ecc enclave/ecc-enclave-lib enclave/ecc-enclave-include
+docker:
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) -t $(DOCKER_IMAGE):$(FPC_VERSION) -f $(TOP)/ecc_go/Dockerfile .
